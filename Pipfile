@@ -1,0 +1,22 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "*"
+opencv-python = "*"
+matplotlib = "*"
+open3d = "*"
+numba = "*"
+pytest = "*"
+python-dotenv = "*"
+loguru = "*"
+hypothesis = "*"
+streamlit = "*"
+streamlit-image-comparison = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"
