@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 import cv2
+import matplotlib.pyplot as plt
 import os
 import glob
 import importlib
 import processing
 import numpy as np
 import traceback
+from loguru import logger
 
 
 @dataclass
@@ -48,7 +50,29 @@ def make_grid(images: list[ImageResult], cols=3, scale=1.0):
 
     return np.vstack(rows)
 
+def plot_image_results(image_results: list[ImageResult], fig_ax=None):
+    plt.ion()
+    grid_processed = make_grid(image_results, cols=4)
+    if grid_processed is not None:
+        grid_rgb = cv2.cvtColor(grid_processed, cv2.COLOR_BGR2RGB)
+        if fig_ax is None:
+            fig, ax = plt.subplots(figsize=(12, 8))
+            im = ax.imshow(grid_rgb)
+            ax.set_title("Processed Images Grid")
+            ax.axis('off')
+            plt.show(block=False)
+            return fig, ax, im
+        else:
+            fig, ax, im = fig_ax
+            im.set_data(grid_rgb)
+            fig.canvas.draw_idle()
+            fig.canvas.flush_events()
+            return fig, ax, im
+    return fig_ax
 
+def print_data_results(data_results: list[DataResult]):
+    for data_result in data_results:
+        logger.info(f"{data_result.description}: {data_result.data}")
 
 def main():
     image_folder = "./images"
@@ -64,6 +88,8 @@ def main():
     last_mtime = os.path.getmtime(processing_file)
     can_show = True
 
+    fig_ax = None
+    plt.ion()
     while True:
         # Auto-reload processing.py
         try:
@@ -90,30 +116,18 @@ def main():
                 for i, processed_img in enumerate(processing_result.processed_images):
                     cv2.imwrite(f"./images/results/image_processed_{i}.png", processed_img.image)
 
-                # grid_original = make_grid(originals, cols=4)
-                grid_processed = make_grid(processing_result.processed_images, cols=4)
+                fig_ax = plot_image_results(processing_result.processed_images, fig_ax)
+                print_data_results(processing_result.data)
 
-                # if grid_original is not None and grid_processed is not None:
-                #     combined = np.hstack([grid_original, grid_processed])
-                #     cv2.imshow("Original (left) | Processed (right)", combined)
-                if grid_processed is not None:
-                    combined = np.hstack([grid_processed])
-                    cv2.imshow("Processed", combined)
-                    
-
-            
             except Exception:
                 print("⚠ Error in processing.py. Waiting for fix...")
                 traceback.print_exc()
                 can_show = False
-                cv2.destroyAllWindows()  # hide previous images
+                plt.close('all')  # hide previous images
+                fig_ax = None
             can_show = False
 
-        key = cv2.waitKey(200) & 0xFF
-        if key == ord("q"):
-            break
-
-    cv2.destroyAllWindows()
+        plt.pause(0.2)
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import cv2
 import numpy as np
 
@@ -12,5 +11,6 @@ def process_image(processed: ProcessingResult, img: np.ndarray):
     processed.append_image(image=blurred, description="Blurred Image")
     _, thresholded = cv2.threshold(blurred, 100, 255, cv2.THRESH_BINARY)
     processed.append_image(image=thresholded, description="Thresholded Image")
+    processed.append_data(data=np.mean(blurred), description="Mean Intensity")
 
     return processing_result
