@@ -5,7 +5,7 @@ from src.main import ProcessingResult
 
 
 def process_image(processed: ProcessingResult, img: np.ndarray):
-    processing_result = ProcessingResult()
+    processing_result = ProcessingResult([], [])
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 1.4)
     processed.append_image(image=blurred, description="Blurred Image")

@@ -8,7 +8,7 @@ import processing
 import numpy as np
 import traceback
 from loguru import logger
-
+import click
 
 @dataclass
 class ImageResult:
@@ -21,9 +21,9 @@ class DataResult:
     description: str
 
 class ProcessingResult:
-    def __init__(self, processed_images: list[ImageResult]=None, data: list[DataResult]=None):
-        self.processed_images = processed_images if processed_images is not None else []
-        self.data = data if data is not None else []
+    def __init__(self, processed_images: list[ImageResult], data: list[DataResult]):
+        self.processed_images = processed_images
+        self.data = data
 
     def append_image(self, image, description: str):
         self.processed_images.append(ImageResult(image=image, description=description))
@@ -74,8 +74,10 @@ def print_data_results(data_results: list[DataResult]):
     for data_result in data_results:
         logger.info(f"{data_result.description}: {data_result.data}")
 
-def main():
-    image_folder = "./images"
+@click.command()
+@click.option('--image-folder', default='./images', help='Folder containing images to process')
+@click.option('--processing-file', default='./processing.py', help='Image processing Python file directory')
+def main(image_folder, processing_file):
     image_paths = glob.glob(os.path.join(image_folder, "*.*"))
 
     if not image_paths:
