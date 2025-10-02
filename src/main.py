@@ -7,7 +7,7 @@ import click
 import cv2
 import matplotlib.pyplot as plt
 
-import processing
+import scripts.processing as processing
 from base import ImageData, ProcessedImageData
 from viewer import Viewer
 
@@ -34,7 +34,7 @@ def get_processed_images(original_images: list[ImageData]) -> list[ProcessedImag
 )
 @click.option(
     "--processing-file",
-    default="./processing.py",
+    default="./scripts/processing.py",
     help="Image processing Python file directory",
 )
 def main(image_folder, processing_file):
@@ -46,11 +46,10 @@ def main(image_folder, processing_file):
         if img is not None:
             original_images.append(ImageData(id=i, image=img))
 
-    viewer = Viewer(original_images=original_images)
 
-    processing_file = processing.__file__
     last_mtime = os.path.getmtime(processing_file)
 
+    viewer = Viewer(original_images=original_images)
     viewer.update(processed_images=get_processed_images(original_images))
 
     while True:
