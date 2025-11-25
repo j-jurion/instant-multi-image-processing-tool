@@ -27,6 +27,6 @@ if __name__ == "__main__":
     # multiple-image example
     image_folder = "./images"
     imip.load(image_folder)
-    imip.debug_fn(process_image)
+    imip.debug_fn(process_image, watch_file="./src/example.py")
 
 
