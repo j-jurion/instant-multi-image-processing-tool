@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import os
+from unittest import result
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,7 +18,7 @@ class ImageData:
     image: np.ndarray
     debug_images: list[DebugImage] = field(default_factory=list)
     result_image: np.ndarray | None = None
-    result_data: dict | None = field(default_factory=dict)
+    result_data: float | None = None
 
 
 def show_image(image: np.ndarray, title: str = "Image"):
@@ -103,6 +104,7 @@ class IMIP:
         self.debug_images_saved: bool = False
         
     def load(self, directory: str):
+        print(f"Loading images from: {directory}")
         for file in os.listdir(directory):
             if file.endswith('.bmp') or file.endswith('.png') or file.endswith('.jpg'):
                 filepath = os.path.join(directory, file)
@@ -114,12 +116,10 @@ class IMIP:
     def loaded_images(self) -> list[ImageData]:
         return self.data
     
-    def register_result(self, index: int, result: np.ndarray, data: dict):
-        for img_data in self.data:
-            if img_data.index == index:
-                img_data.result_image = result
-                img_data.result_data = data
-                break
+    def register_result(self, result_image: np.ndarray, result_data: dict):
+        assert self.current_data_index is not None, "No current image data set."
+        self.data[self.current_data_index].result_data = result_data
+        self.data[self.current_data_index].result_image = result_image
     
     #
     # Debugger functions -----------------------------------------------------------
@@ -181,5 +181,22 @@ class IMIP:
         self._file_mtimes[filepath] = current_mtime
         return last_mtime is None or current_mtime != last_mtime
     
+
+    #
+    # Test functions -----------------------------------------------------------
+    #
+
+    def test_fn(self, function):
+        """
+        Run function on all images for testing purposes.
+        """
+        for i, image_data in enumerate(self.loaded_images()):
+            image_data.debug_images.clear()
+            self.current_data_index = i
+            self.register_result(*function(image_data.image))
+
+    def results(self) -> list[float | None]:
+        return [data.result_data for data in self.data]
+
 imip = IMIP()
 

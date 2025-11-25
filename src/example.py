@@ -14,6 +14,11 @@ def process_image(image: np.ndarray) -> np.ndarray:
     imip.debugger(thresholded, "Thresholded Image")
     return thresholded
 
+def analyse_image(image: np.ndarray) -> tuple[np.ndarray, int]:
+    processed_image = process_image(image)
+    contours, _ = cv.findContours(processed_image, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    return processed_image, len(contours)
+
 
 if __name__ == "__main__":
     # # Easy one-image example
@@ -27,6 +32,6 @@ if __name__ == "__main__":
     # multiple-image example
     image_folder = "./images"
     imip.load(image_folder)
-    imip.debug_fn(process_image, watch_file="./src/example.py")
+    imip.debug_fn(analyse_image, watch_file="./src/example.py")
 
 
