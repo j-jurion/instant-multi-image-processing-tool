@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 import os
-from unittest import result
+from typing import Any
 import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -104,6 +104,7 @@ class IMIP:
         self.debug_images_saved: bool = False
         
     def load(self, directory: str):
+        self.clear_data()
         print(f"Loading images from: {directory}")
         for file in os.listdir(directory):
             if file.endswith('.bmp') or file.endswith('.png') or file.endswith('.jpg'):
@@ -116,7 +117,11 @@ class IMIP:
     def loaded_images(self) -> list[ImageData]:
         return self.data
     
-    def register_result(self, result_image: np.ndarray, result_data: dict):
+    def clear_data(self):
+        self.data.clear()
+        self.current_data_index = None
+    
+    def register_result(self, result_image: np.ndarray, result_data: dict) :
         assert self.current_data_index is not None, "No current image data set."
         self.data[self.current_data_index].result_data = result_data
         self.data[self.current_data_index].result_image = result_image
@@ -186,14 +191,17 @@ class IMIP:
     # Test functions -----------------------------------------------------------
     #
 
-    def test_fn(self, function):
+    def test_fn(self, function)-> list[Any]:
         """
         Run function on all images for testing purposes.
         """
+        results = []
         for i, image_data in enumerate(self.loaded_images()):
             image_data.debug_images.clear()
             self.current_data_index = i
-            self.register_result(*function(image_data.image))
+            # self.register_result(*function(image_data.image))
+            results.append(function(image_data.image))
+        return results
 
     def results(self) -> list[float | None]:
         return [data.result_data for data in self.data]
