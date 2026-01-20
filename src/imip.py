@@ -173,7 +173,7 @@ class IMIP:
         while True:
             if self.file_is_reloaded(watch_file):
                 print("🔄 File changed, reloading...")
-                run_function()
+                run_function() 
             plt.pause(1)
 
 
@@ -206,5 +206,4 @@ class IMIP:
     def results(self) -> list[float | None]:
         return [data.result_data for data in self.data]
 
-imip = IMIP()
 

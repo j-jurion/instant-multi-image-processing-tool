@@ -1,8 +1,7 @@
 import cv2 as cv
 import numpy as np
 
-from imip import imip
-imip.set_debugger_options(output_directory="./debug_images", debug_images_saved=True)
+from imip import IMIP
 
 
 def process_image(image: np.ndarray) -> np.ndarray:
@@ -30,6 +29,8 @@ if __name__ == "__main__":
     # imip.show_debug_images()
 
     # multiple-image example
+    imip = IMIP()
+    imip.set_debugger_options(output_directory="./debug_images", debug_images_saved=True)
     image_folder = "./images"
     imip.load(image_folder)
     imip.debug_fn(analyse_image, watch_file="./src/example.py")
