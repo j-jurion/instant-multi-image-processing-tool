@@ -83,7 +83,6 @@ class Viewer:
                 self.im.set_extent((0, grid.shape[1], grid.shape[0], 0))
             self.fig.canvas.draw_idle()
             self.fig.canvas.flush_events()
-            plt.pause(0.001)  # Allow GUI events to process
 
     def update(self, image_bundles: list[ImageBundle]):
         self.image_bundles = image_bundles
