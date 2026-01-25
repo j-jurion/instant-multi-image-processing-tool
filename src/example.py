@@ -25,8 +25,6 @@ def analyse_image(image: np.ndarray) -> int:
 
 
 if __name__ == "__main__":
-    imip = IMIP()
-    imip.set_debug_save_dir(output_directory=Path("./debug_images"))
     image_folder = Path("./images")
-    imip.load_images(image_folder)
+    imip = IMIP(images=image_folder, output_directory=Path("./debug_images"), save_debug_images=True)
     imip.debug_fn(process_image, watch_file=Path("src/example.py"))
