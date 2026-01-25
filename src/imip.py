@@ -84,6 +84,17 @@ class IMIP:
         self._file_mtimes[filepath] = current_mtime
         return last_mtime is None or current_mtime != last_mtime
 
+    def visualize_debug_images(self):
+        for i, image_bundle in enumerate(self.debug_images):
+            for description, img in image_bundle.processed_images.items():
+                window_name = f"Image {i + 1}: {description}"
+                cv.imshow(window_name, img)
+                # if self.save_debug_images and self.output_directory is not None:
+                #     save_path = self.output_directory / f"image_{i + 1}_{description}.png"
+                #     cv.imwrite(str(save_path), img)
+        cv.waitKey(0)
+        cv.destroyAllWindows()
+
 
 class IMIPReloader:
     def __init__(self, filepath: Path):
