@@ -1,17 +1,16 @@
 import asyncio
 import os
 from pathlib import Path
-from typing import Any, Callable, NamedTuple
+from typing import Any, Callable
 
 import cv2 as cv
 import numpy as np
+from matplotlib import pyplot as plt
 from heliovision.streams.stream import Observable, Stream
 from loguru import logger
+from viewer import Viewer
+from base import ImageBundle
 
-
-class ImageBundle(NamedTuple):
-    source_image: np.ndarray
-    processed_images: dict[str, np.ndarray]
 
 
 class IMIP:
@@ -21,6 +20,7 @@ class IMIP:
         self.output_directory = None
         self.save_debug_images = False
         self.imip_reloader: IMIPReloader | None = None
+        self.viewer = Viewer(self.debug_images)
 
     def set_debug_save_dir(self, output_directory: Path | None) -> None:
         if output_directory is None:
@@ -48,6 +48,7 @@ class IMIP:
                 self.debug_images.append(
                     ImageBundle(source_image=image, processed_images={})
                 )
+                self.viewer.update(self.debug_images)
         except Exception as e:
             logger.warning(f"Could not load image {path}: {e}")
 
@@ -60,7 +61,9 @@ class IMIP:
                 for i, image_bundle in enumerate(self.debug_images):
                     logger.debug(f"Processing image {i + 1}/{len(self.debug_images)}")
                     self.current_image_index = i
+                    logger.debug(image_bundle)
                     function(image_bundle.source_image)
+                self.viewer.update(self.debug_images)
 
         self.imip_reloader.file_reloaded_stream.subscribe(
             on_next=run_function,
@@ -75,6 +78,7 @@ class IMIP:
         self.debug_images[self.current_image_index].processed_images[description] = (
             image
         )
+        self.viewer.update(self.debug_images)
 
     def file_is_reloaded(self, filepath: Path) -> bool:
         current_mtime = os.path.getmtime(filepath)
@@ -84,16 +88,6 @@ class IMIP:
         self._file_mtimes[filepath] = current_mtime
         return last_mtime is None or current_mtime != last_mtime
 
-    def visualize_debug_images(self):
-        for i, image_bundle in enumerate(self.debug_images):
-            for description, img in image_bundle.processed_images.items():
-                window_name = f"Image {i + 1}: {description}"
-                cv.imshow(window_name, img)
-                # if self.save_debug_images and self.output_directory is not None:
-                #     save_path = self.output_directory / f"image_{i + 1}_{description}.png"
-                #     cv.imwrite(str(save_path), img)
-        cv.waitKey(0)
-        cv.destroyAllWindows()
 
 
 class IMIPReloader:
@@ -107,6 +101,9 @@ class IMIPReloader:
 
     async def run(self):
         while True:
+            # Process matplotlib GUI events
+            plt.pause(0.001)
+            
             current_mtime = os.path.getmtime(self.filepath)
             if not hasattr(self, "_file_mtimes"):
                 self._file_mtimes = {}
@@ -114,4 +111,4 @@ class IMIPReloader:
             self._file_mtimes[self.filepath] = current_mtime
             if last_mtime is None or current_mtime != last_mtime:
                 self._file_reloaded_stream.next(True)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.01)
