@@ -15,49 +15,44 @@ from viewer import Viewer
 
 
 class IMIP:
-    def __init__(self):
-        self.debug_images: list[ImageBundle] = []
+    def __init__(self, images: Path, output_directory: Path | None = None, save_debug_images: bool = False):
+        self.debug_images = self.load_images(images)
         self.current_image_index: int | None = None
-        self.output_directory: Path | None = None
-        self.save_debug_images = False
+        self.output_directory = output_directory
+        self.save_debug_images = save_debug_images
         self.imip_reloader: IMIPReloader | None = None
         self.viewer = Viewer(self.debug_images)
 
-    def set_debug_save_dir(self, output_directory: Path | None) -> None:
-        """Configure directory for saving debug images."""
-        if output_directory is None:
-            self.save_debug_images = False
-        else:
-            self.output_directory = output_directory
-            self.save_debug_images = True
-
-    def load_images(self, path: Path) -> None:
+    def load_images(self, path: Path) -> list[ImageBundle]:
         """Load images from a file or directory."""
-        if path.is_file():
-            self._load_image(path)
-        elif path.is_dir():
-            for img_file in sorted(path.glob("*.*")):
-                if img_file.is_file():
-                    self._load_image(img_file)
-        else:
+        if not path.is_file() and not path.is_dir():
             raise ValueError(f"Path {path} is neither a file nor a directory.")
         
-        self.viewer.update(self.debug_images)
+        if path.is_file():
+            image_bundle = self._load_image(path)
+            return [image_bundle] if image_bundle else []
+        
+        image_bundles = []
+        for img_file in sorted(path.glob("*.*")):
+            if not img_file.is_file():
+                continue
+            image_bundle = self._load_image(img_file)
+            if image_bundle:
+                image_bundles.append(image_bundle)
+        return image_bundles
 
-    def _load_image(self, path: Path) -> None:
+    def _load_image(self, path: Path) -> ImageBundle | None:
         """Load a single image file."""
         try:
             image = cv.imread(str(path))
             if image is None:
                 logger.warning(f"Image at {path} could not be loaded. Image is None.")
             else:
-                self.debug_images.append(
-                    ImageBundle(
+                return ImageBundle(
                         source_image=image,
                         processed_images={},
                         filename=path.name
                     )
-                )
         except Exception as e:
             logger.warning(f"Could not load image {path}: {e}")
 
@@ -145,7 +140,6 @@ class IMIP:
         assert self.current_image_index is not None, "No current image data set."
         logger.debug(f"Debugging image at index {self.current_image_index} with description '{description}'")
         self.debug_images[self.current_image_index].processed_images[description] = image
-        self.viewer.update(self.debug_images)
 
 
 class IMIPReloader:
