@@ -124,7 +124,6 @@ class IMIP:
         self.debug_images[self.current_image_index].processed_images[description] = (
             image
         )
-        self.viewer.update(self.debug_images)
 
 
 

@@ -36,117 +36,109 @@ class Viewer:
         return cv.resize(image, new_size)
 
     def make_grid(self):
-        if len(self.image_bundles) == 0:
+        if not self.image_bundles:
             return None
-        h, w = self.image_bundles[0].source_image.shape[:2]
-        h, w = int(h * self.scale), int(w * self.scale)
         
-        # Add space for text labels (40 pixels height)
-        text_height = 40
-        # Width for filename column on the left
-        filename_width = 150
-
-        reformatted_bundles = []    
+        h, w = self._get_scaled_dimensions()
+        reformatted_bundles = self._reformat_and_pad_bundles(h, w)
+        
+        rows = []
+        rows.append(self._create_header_row(reformatted_bundles[0], w))
+        rows.extend(self._create_image_rows(reformatted_bundles, h))
+        
+        return np.vstack(rows)
+    
+    def _get_scaled_dimensions(self) -> tuple[int, int]:
+        """Get the scaled height and width for images."""
+        h, w = self.image_bundles[0].source_image.shape[:2]
+        return int(h * self.scale), int(w * self.scale)
+    
+    def _reformat_and_pad_bundles(self, h: int, w: int) -> list[ImageBundle]:
+        """Reformat all images to the same size and add padding to match column count."""
+        reformatted_bundles = []
+        
         for img_bundle in self.image_bundles:
             reformatted_source = self.reformat_image((w, h), img_bundle.source_image)
-            reformatted_processed = {}
-            for k, img in img_bundle.processed_images.items():
-                reformatted_processed[k] = self.reformat_image((w, h), img)
+            reformatted_processed = {
+                k: self.reformat_image((w, h), img)
+                for k, img in img_bundle.processed_images.items()
+            }
             reformatted_bundles.append(
                 ImageBundle(
                     source_image=reformatted_source,
                     processed_images=reformatted_processed,
-                )   
+                    filename=img_bundle.filename
+                )
             )
-
+        
         # Pad each row to match column count
         for bundle in reformatted_bundles:
-            num_images = 1 + len(bundle.processed_images)  # source + processed
-            while num_images % self.columns != 0:
-                padding_key = f'_pad_{num_images}'
+            num_images = 1 + len(bundle.processed_images)
+            padding_count = (self.columns - (num_images % self.columns)) % self.columns
+            for i in range(padding_count):
+                padding_key = f'_pad_{num_images + i}'
                 bundle.processed_images[padding_key] = np.ones((h, w, 3), dtype=np.uint8) * 255
-                num_images += 1
-
-        rows = []
-        # Add header row with column labels (only for first bundle)
-        if len(reformatted_bundles) > 0:
-            first_bundle = reformatted_bundles[0]
-            
-            # Create empty space for filename column in header
-            filename_header = np.ones((text_height, filename_width, 3), dtype=np.uint8) * 255
-            
-            header_images = [filename_header]
-            
-            # Add "Original Image" label
-            header_images.append(self._add_text_label(
-                np.ones((0, w, 3), dtype=np.uint8) * 255, "Original Image", text_height
-            ))
-            
-            # Add processed image labels
-            for description in first_bundle.processed_images.keys():
-                if not description.startswith('_pad_'):
-                    label_text = description
-                else:
-                    label_text = ""
-                header_images.append(self._add_text_label(
-                    np.ones((0, w, 3), dtype=np.uint8) * 255, label_text, text_height
-                ))
-            
-            rows.append(np.hstack(header_images))
         
-        # Add image rows with filename to the left
-        for idx, bundle in enumerate(reformatted_bundles):
-            images_in_row = []
-            
-            # Create filename label to the left of the row
-            filename = self.image_bundles[idx].filename if idx < len(self.image_bundles) else ""
-            filename_label = self._create_filename_label(filename, filename_width, h)
-            images_in_row.append(filename_label)
-            
-            # Add source image (no padding)
-            images_in_row.append(bundle.source_image)
-            
-            # Add processed images (no padding)
-            for img in bundle.processed_images.values():
-                images_in_row.append(img)
-            
-            rows.append(np.hstack(images_in_row))
-
-        return np.vstack(rows)
+        return reformatted_bundles
     
-    def _create_filename_label(self, text: str, width: int, height: int) -> np.ndarray:
-        """Create a vertical label with filename text"""
+    def _create_header_row(self, first_bundle: ImageBundle, img_width: int) -> np.ndarray:
+        """Create the header row with column labels."""
+        text_height = 40
+        filename_width = 150
+        
+        header_parts = [
+            np.ones((text_height, filename_width, 3), dtype=np.uint8) * 255,
+            self._create_text_only_label("Original Image", img_width, text_height)
+        ]
+        
+        for description in first_bundle.processed_images.keys():
+            label_text = "" if description.startswith('_pad_') else description
+            header_parts.append(self._create_text_only_label(label_text, img_width, text_height))
+        
+        return np.hstack(header_parts)
+    
+    def _create_image_rows(self, bundles: list[ImageBundle], img_height: int) -> list[np.ndarray]:
+        """Create all image rows with filename labels."""
+        filename_width = 150
+        rows = []
+        
+        for bundle in bundles:
+            row_parts = [
+                self._create_filename_label(bundle.filename, filename_width, img_height),
+                bundle.source_image
+            ]
+            row_parts.extend(bundle.processed_images.values())
+            rows.append(np.hstack(row_parts))
+        
+        return rows
+    
+    def _create_text_only_label(self, text: str, width: int, height: int) -> np.ndarray:
+        """Create a text label without an image underneath."""
         label_bg = np.ones((height, width, 3), dtype=np.uint8) * 255
         
         if text:
-            font = cv.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.5
-            font_thickness = 1
-            text_size = cv.getTextSize(text, font, font_scale, font_thickness)[0]
-            text_x = (width - text_size[0]) // 2
-            text_y = height // 2
-            cv.putText(label_bg, text, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness, cv.LINE_AA)
+            self._add_centered_text(label_bg, text, width, height)
         
         return label_bg
     
-    def _add_text_label(self, image: np.ndarray, text: str, text_height: int) -> np.ndarray:
-        """Add a white text label above the image"""
-        h, w = image.shape[:2]
-        # Create white background for text
-        label_bg = np.ones((text_height, w, 3), dtype=np.uint8) * 255
+    def _create_filename_label(self, text: str, width: int, height: int) -> np.ndarray:
+        """Create a vertical label with filename text."""
+        label_bg = np.ones((height, width, 3), dtype=np.uint8) * 255
         
-        # Add text to the background
         if text:
-            font = cv.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.5
-            font_thickness = 1
-            text_size = cv.getTextSize(text, font, font_scale, font_thickness)[0]
-            text_x = (w - text_size[0]) // 2  # Center horizontally
-            text_y = (text_height + text_size[1]) // 2  # Center vertically
-            cv.putText(label_bg, text, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness, cv.LINE_AA)
+            self._add_centered_text(label_bg, text, width, height)
         
-        # Stack label above image
-        return np.vstack([label_bg, image])
+        return label_bg
+    
+    def _add_centered_text(self, image: np.ndarray, text: str, width: int, height: int) -> None:
+        """Add centered text to an image in-place."""
+        font = cv.FONT_HERSHEY_SIMPLEX
+        font_scale = 0.5
+        font_thickness = 1
+        text_size = cv.getTextSize(text, font, font_scale, font_thickness)[0]
+        text_x = (width - text_size[0]) // 2
+        text_y = (height + text_size[1]) // 2
+        cv.putText(image, text, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness, cv.LINE_AA)
 
     def show(self):
         grid = self.make_grid()
