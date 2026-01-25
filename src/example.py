@@ -8,11 +8,11 @@ from imip import IMIP
 
 def process_image(image: np.ndarray) -> np.ndarray:
     gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-    imip.debugger(gray, "Gray Image")
+    imip.debug(gray, "Gray Image")
     blurred = cv.GaussianBlur(gray, (5, 5), 2)
-    imip.debugger(blurred, "Blurred Image")
+    imip.debug(blurred, "Blurred Image")
     _, thresholded = cv.threshold(blurred, 50, 255, cv.THRESH_BINARY)
-    imip.debugger(thresholded, "Thresholded Image")
+    imip.debug(thresholded, "Thresholded Image")
     return thresholded
 
 

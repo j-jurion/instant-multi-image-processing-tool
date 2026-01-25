@@ -117,6 +117,8 @@ class IMIP:
                 logger.error(f"Error processing image {i}: {e}")
         
         self.viewer.update(self.debug_images)
+        if self.save_debug_images:
+            self.save_images()
 
     def _start_file_watcher(self) -> None:
         """Start the file watcher in a background thread."""
@@ -135,11 +137,27 @@ class IMIP:
         from matplotlib import pyplot as plt
         plt.show(block=True)
 
-    def debugger(self, image: np.ndarray, description: str = "") -> None:
+    def debug(self, image: np.ndarray, description: str = "") -> None:
         """Store a processed image for debugging and update the viewer."""
         assert self.current_image_index is not None, "No current image data set."
         logger.debug(f"Debugging image at index {self.current_image_index} with description '{description}'")
         self.debug_images[self.current_image_index].processed_images[description] = image
+
+
+    def save_images(self) -> None:
+        """Save debug images to the output directory."""
+        if not self.output_directory:
+            logger.warning("Output directory not set. Cannot save images.")
+            return
+        
+        os.makedirs(self.output_directory, exist_ok=True)
+        
+        for bundle in self.debug_images:
+            for desc, img in bundle.processed_images.items():
+                filename = f"{Path(bundle.filename).stem}_{desc}.png"
+                output_path = self.output_directory / filename
+                cv.imwrite(str(output_path), img)
+                logger.debug(f"Saved debug image to {output_path}")
 
 
 class IMIPReloader:
