@@ -1,31 +1,30 @@
 import asyncio
-import importlib
+import importlib.util
 import os
-import sys
 import threading
 from pathlib import Path
 from typing import Any, Callable
-import threading
 
 import cv2 as cv
 import numpy as np
 from heliovision.streams.stream import Observable, Stream
 from loguru import logger
-from viewer import Viewer
-from base import ImageBundle
 
+from base import ImageBundle
+from viewer import Viewer
 
 
 class IMIP:
     def __init__(self):
         self.debug_images: list[ImageBundle] = []
         self.current_image_index: int | None = None
-        self.output_directory = None
+        self.output_directory: Path | None = None
         self.save_debug_images = False
         self.imip_reloader: IMIPReloader | None = None
         self.viewer = Viewer(self.debug_images)
 
     def set_debug_save_dir(self, output_directory: Path | None) -> None:
+        """Configure directory for saving debug images."""
         if output_directory is None:
             self.save_debug_images = False
         else:
@@ -33,77 +32,99 @@ class IMIP:
             self.save_debug_images = True
 
     def load_images(self, path: Path) -> None:
+        """Load images from a file or directory."""
         if path.is_file():
             self._load_image(path)
         elif path.is_dir():
-            for img_file in path.glob("*.*"):
+            for img_file in sorted(path.glob("*.*")):
                 if img_file.is_file():
                     self._load_image(img_file)
         else:
             raise ValueError(f"Path {path} is neither a file nor a directory.")
+        
+        self.viewer.update(self.debug_images)
 
     def _load_image(self, path: Path) -> None:
+        """Load a single image file."""
         try:
             image = cv.imread(str(path))
             if image is None:
                 logger.warning(f"Image at {path} could not be loaded. Image is None.")
             else:
                 self.debug_images.append(
-                    ImageBundle(source_image=image, processed_images={}, filename=str(path.name))
+                    ImageBundle(
+                        source_image=image,
+                        processed_images={},
+                        filename=path.name
+                    )
                 )
         except Exception as e:
             logger.warning(f"Could not load image {path}: {e}")
 
     def debug_fn(self, function: Callable[[Any], Any], watch_file: Path) -> None:
-        """Run file watcher in background thread, matplotlib stays on main thread"""
+        """Watch a file for changes and rerun the processing function on all images."""
         self.imip_reloader = IMIPReloader(watch_file)
-        
-        # Get module and function name for reloading
         function_name = function.__name__
         watch_file_abs = watch_file.resolve()
 
-        def run_function(reloaded: bool):
-            current_function = function
-            
+        # Initial processing run
+        self._process_all_images(function)
+
+        # Setup file watcher
+        def on_file_changed(reloaded: bool):
             if reloaded:
-                logger.debug("File reloaded - reloading module")
-                # Reload the module to get the updated function
-                try:
-                    # Create a module spec from the file path
-                    import importlib.util
-                    spec = importlib.util.spec_from_file_location("__reloaded_module__", watch_file_abs)
-                    if spec and spec.loader:
-                        module = importlib.util.module_from_spec(spec)
-                        # Inject the imip instance into the module's global namespace
-                        module.imip = self  # type: ignore
-                        spec.loader.exec_module(module)
-                        # Get the updated function from the reloaded module
-                        current_function = getattr(module, function_name)
-                        logger.debug(f"Successfully reloaded function {function_name}")
-                    else:
-                        logger.warning(f"Could not create spec for {watch_file_abs}")
-                except Exception as e:
-                    logger.error(f"Failed to reload module: {e}")
-            
-                # Process images (both initial run and on reload)
-                logger.debug("Processing all images" + (" with updated function" if reloaded else ""))
-                for i, image_bundle in enumerate(self.debug_images):
-                    logger.debug(f"Processing image {i + 1}/{len(self.debug_images)}")
-                    self.current_image_index = i
-                    # Clear previous processed images for this bundle on reload
-                    image_bundle.processed_images.clear()
-                    logger.debug(image_bundle)
-                    current_function(image_bundle.source_image)
-                self.viewer.update(self.debug_images)
-        
-        run_function(True)  # Initial run
+                reloaded_function = self._reload_function(function_name, watch_file_abs)
+                if reloaded_function:
+                    self._process_all_images(reloaded_function, clear_processed=True)
 
         self.imip_reloader.file_reloaded_stream.subscribe(
-            on_next=run_function,
-            on_error=lambda e: logger.error(e),
+            on_next=on_file_changed,
+            on_error=lambda e: logger.error(f"File watcher error: {e}"),
         )
 
-        # Run asyncio event loop in background thread
+        # Start file watcher in background
+        self._start_file_watcher()
+        
+        # Keep matplotlib on main thread
+        self._show_viewer()
+
+    def _reload_function(self, function_name: str, file_path: Path) -> Callable | None:
+        """Reload a function from a file."""
+        logger.debug("File reloaded - reloading module")
+        try:
+            spec = importlib.util.spec_from_file_location("__reloaded_module__", file_path)
+            if spec and spec.loader:
+                module = importlib.util.module_from_spec(spec)
+                module.imip = self  # type: ignore
+                spec.loader.exec_module(module)
+                reloaded_function = getattr(module, function_name)
+                logger.debug(f"Successfully reloaded function {function_name}")
+                return reloaded_function
+            else:
+                logger.warning(f"Could not create spec for {file_path}")
+        except Exception as e:
+            logger.error(f"Failed to reload module: {e}")
+        return None
+
+    def _process_all_images(self, function: Callable, clear_processed: bool = False) -> None:
+        """Process all loaded images with the given function."""
+        logger.debug(f"Processing {len(self.debug_images)} images")
+        for i, image_bundle in enumerate(self.debug_images):
+            logger.debug(f"Processing image {i + 1}/{len(self.debug_images)}")
+            self.current_image_index = i
+            
+            if clear_processed:
+                image_bundle.processed_images.clear()
+            
+            try:
+                function(image_bundle.source_image)
+            except Exception as e:
+                logger.error(f"Error processing image {i}: {e}")
+        
+        self.viewer.update(self.debug_images)
+
+    def _start_file_watcher(self) -> None:
+        """Start the file watcher in a background thread."""
         loop = asyncio.new_event_loop()
         
         def run_async_loop():
@@ -113,22 +134,23 @@ class IMIP:
         
         async_thread = threading.Thread(target=run_async_loop, daemon=True)
         async_thread.start()
-        
-        # Keep matplotlib on main thread
+
+    def _show_viewer(self) -> None:
+        """Show the viewer window (blocking)."""
         from matplotlib import pyplot as plt
         plt.show(block=True)
 
-    def debugger(self, image: np.ndarray, description: str = ""):
+    def debugger(self, image: np.ndarray, description: str = "") -> None:
+        """Store a processed image for debugging and update the viewer."""
         assert self.current_image_index is not None, "No current image data set."
-        logger.error(f"Debugging image at index {self.current_image_index} with description '{description}'")
-        self.debug_images[self.current_image_index].processed_images[description] = (
-            image
-        )
-
-
+        logger.debug(f"Debugging image at index {self.current_image_index} with description '{description}'")
+        self.debug_images[self.current_image_index].processed_images[description] = image
+        self.viewer.update(self.debug_images)
 
 
 class IMIPReloader:
+    """Watches a file for modifications and emits events when changes are detected."""
+    
     def __init__(self, filepath: Path):
         self.filepath = filepath
         self._file_reloaded_stream: Stream[bool] = Stream()
@@ -137,13 +159,19 @@ class IMIPReloader:
     def file_reloaded_stream(self) -> Observable[bool]:
         return self._file_reloaded_stream
 
-    async def run(self):
+    async def run(self) -> None:
+        """Poll the file for changes and emit events when modified."""
         last_mtime = None
         while True:
-            current_mtime = os.path.getmtime(self.filepath)
-            # Only emit when there's an actual change (not on first check or when unchanged)
-            if last_mtime is not None and current_mtime != last_mtime:
-                self._file_reloaded_stream.next(True)
-            last_mtime = current_mtime
+            try:
+                current_mtime = os.path.getmtime(self.filepath)
+                # Only emit when there's an actual change
+                if last_mtime is not None and current_mtime != last_mtime:
+                    logger.debug(f"File {self.filepath.name} changed")
+                    self._file_reloaded_stream.next(True)
+                last_mtime = current_mtime
+            except Exception as e:
+                logger.error(f"Error checking file modification time: {e}")
+            
             await asyncio.sleep(0.1)
 
