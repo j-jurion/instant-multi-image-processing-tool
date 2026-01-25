@@ -49,9 +49,8 @@ class IMIP:
                 logger.warning(f"Image at {path} could not be loaded. Image is None.")
             else:
                 self.debug_images.append(
-                    ImageBundle(source_image=image, processed_images={})
+                    ImageBundle(source_image=image, processed_images={}, filename=str(path.name))
                 )
-                self.viewer.update(self.debug_images)
         except Exception as e:
             logger.warning(f"Could not load image {path}: {e}")
 
@@ -86,19 +85,18 @@ class IMIP:
                 except Exception as e:
                     logger.error(f"Failed to reload module: {e}")
             
-            # Process images (both initial run and on reload)
-            logger.debug("Processing all images" + (" with updated function" if reloaded else ""))
-            for i, image_bundle in enumerate(self.debug_images):
-                logger.debug(f"Processing image {i + 1}/{len(self.debug_images)}")
-                self.current_image_index = i
-                # Clear previous processed images for this bundle on reload
-                if reloaded:
+                # Process images (both initial run and on reload)
+                logger.debug("Processing all images" + (" with updated function" if reloaded else ""))
+                for i, image_bundle in enumerate(self.debug_images):
+                    logger.debug(f"Processing image {i + 1}/{len(self.debug_images)}")
+                    self.current_image_index = i
+                    # Clear previous processed images for this bundle on reload
                     image_bundle.processed_images.clear()
-                logger.debug(image_bundle)
-                current_function(image_bundle.source_image)
-            self.viewer.update(self.debug_images)
+                    logger.debug(image_bundle)
+                    current_function(image_bundle.source_image)
+                self.viewer.update(self.debug_images)
         
-        run_function(False)  # Initial run (don't reload on first execution)
+        run_function(True)  # Initial run
 
         self.imip_reloader.file_reloaded_stream.subscribe(
             on_next=run_function,

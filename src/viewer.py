@@ -40,6 +40,11 @@ class Viewer:
             return None
         h, w = self.image_bundles[0].source_image.shape[:2]
         h, w = int(h * self.scale), int(w * self.scale)
+        
+        # Add space for text labels (40 pixels height)
+        text_height = 40
+        # Width for filename column on the left
+        filename_width = 150
 
         reformatted_bundles = []    
         for img_bundle in self.image_bundles:
@@ -63,14 +68,85 @@ class Viewer:
                 num_images += 1
 
         rows = []
-        for bundle in reformatted_bundles:
-            row = [bundle.source_image]
-            for img in bundle.processed_images.values():
-                row.append(img)
+        # Add header row with column labels (only for first bundle)
+        if len(reformatted_bundles) > 0:
+            first_bundle = reformatted_bundles[0]
             
-            rows.append(np.hstack(row))
+            # Create empty space for filename column in header
+            filename_header = np.ones((text_height, filename_width, 3), dtype=np.uint8) * 255
+            
+            header_images = [filename_header]
+            
+            # Add "Original Image" label
+            header_images.append(self._add_text_label(
+                np.ones((0, w, 3), dtype=np.uint8) * 255, "Original Image", text_height
+            ))
+            
+            # Add processed image labels
+            for description in first_bundle.processed_images.keys():
+                if not description.startswith('_pad_'):
+                    label_text = description
+                else:
+                    label_text = ""
+                header_images.append(self._add_text_label(
+                    np.ones((0, w, 3), dtype=np.uint8) * 255, label_text, text_height
+                ))
+            
+            rows.append(np.hstack(header_images))
+        
+        # Add image rows with filename to the left
+        for idx, bundle in enumerate(reformatted_bundles):
+            images_in_row = []
+            
+            # Create filename label to the left of the row
+            filename = self.image_bundles[idx].filename if idx < len(self.image_bundles) else ""
+            filename_label = self._create_filename_label(filename, filename_width, h)
+            images_in_row.append(filename_label)
+            
+            # Add source image (no padding)
+            images_in_row.append(bundle.source_image)
+            
+            # Add processed images (no padding)
+            for img in bundle.processed_images.values():
+                images_in_row.append(img)
+            
+            rows.append(np.hstack(images_in_row))
 
         return np.vstack(rows)
+    
+    def _create_filename_label(self, text: str, width: int, height: int) -> np.ndarray:
+        """Create a vertical label with filename text"""
+        label_bg = np.ones((height, width, 3), dtype=np.uint8) * 255
+        
+        if text:
+            font = cv.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.5
+            font_thickness = 1
+            text_size = cv.getTextSize(text, font, font_scale, font_thickness)[0]
+            text_x = (width - text_size[0]) // 2
+            text_y = height // 2
+            cv.putText(label_bg, text, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness, cv.LINE_AA)
+        
+        return label_bg
+    
+    def _add_text_label(self, image: np.ndarray, text: str, text_height: int) -> np.ndarray:
+        """Add a white text label above the image"""
+        h, w = image.shape[:2]
+        # Create white background for text
+        label_bg = np.ones((text_height, w, 3), dtype=np.uint8) * 255
+        
+        # Add text to the background
+        if text:
+            font = cv.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.5
+            font_thickness = 1
+            text_size = cv.getTextSize(text, font, font_scale, font_thickness)[0]
+            text_x = (w - text_size[0]) // 2  # Center horizontally
+            text_y = (text_height + text_size[1]) // 2  # Center vertically
+            cv.putText(label_bg, text, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness, cv.LINE_AA)
+        
+        # Stack label above image
+        return np.vstack([label_bg, image])
 
     def show(self):
         grid = self.make_grid()
