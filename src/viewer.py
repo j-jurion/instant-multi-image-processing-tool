@@ -13,6 +13,7 @@ class Viewer:
         self.columns = 4
         plt.ion()
         self.fig, self.ax = plt.subplots()
+        self.fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
         plt.axis("off")
         self.im = None
 
