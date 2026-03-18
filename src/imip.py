@@ -24,7 +24,6 @@ class IMIP:
         self.viewer = Viewer(self.debug_images)
 
     def load_images(self, path: Path) -> list[ImageBundle]:
-        """Load images from a file or directory."""
         if not path.is_file() and not path.is_dir():
             raise ValueError(f"Path {path} is neither a file nor a directory.")
         
@@ -42,7 +41,6 @@ class IMIP:
         return image_bundles
 
     def _load_image(self, path: Path) -> ImageBundle | None:
-        """Load a single image file."""
         try:
             image = cv.imread(str(path))
             if image is None:
@@ -57,7 +55,6 @@ class IMIP:
             logger.warning(f"Could not load image {path}: {e}")
 
     def debug_fn(self, function: Callable[[Any], Any], watch_file: Path) -> None:
-        """Watch a file for changes and rerun the processing function on all images."""
         self.imip_reloader = IMIPReloader(watch_file)
         function_name = function.__name__
         watch_file_abs = watch_file.resolve()
@@ -84,7 +81,6 @@ class IMIP:
         self._show_viewer()
 
     def _reload_function(self, function_name: str, file_path: Path) -> Callable | None:
-        """Reload a function from a file."""
         logger.debug("File reloaded - reloading module")
         try:
             spec = importlib.util.spec_from_file_location("__reloaded_module__", file_path)
@@ -102,7 +98,6 @@ class IMIP:
         return None
 
     def _process_all_images(self, function: Callable, clear_processed: bool = False) -> None:
-        """Process all loaded images with the given function."""
         logger.debug(f"Processing {len(self.debug_images)} images")
         for i, image_bundle in enumerate(self.debug_images):
             logger.debug(f"Processing image {i + 1}/{len(self.debug_images)}")
@@ -121,7 +116,6 @@ class IMIP:
             self.save_images()
 
     def _start_file_watcher(self) -> None:
-        """Start the file watcher in a background thread."""
         loop = asyncio.new_event_loop()
         
         def run_async_loop():
@@ -133,19 +127,16 @@ class IMIP:
         async_thread.start()
 
     def _show_viewer(self) -> None:
-        """Show the viewer window (blocking)."""
         from matplotlib import pyplot as plt
         plt.show(block=True)
 
     def debug(self, image: np.ndarray, description: str = "") -> None:
-        """Store a processed image for debugging and update the viewer."""
         assert self.current_image_index is not None, "No current image data set."
         logger.debug(f"Debugging image at index {self.current_image_index} with description '{description}'")
         self.debug_images[self.current_image_index].processed_images[description] = image
 
 
     def save_images(self) -> None:
-        """Save debug images to the output directory."""
         if not self.output_directory:
             logger.warning("Output directory not set. Cannot save images.")
             return
@@ -161,8 +152,6 @@ class IMIP:
 
 
 class IMIPReloader:
-    """Watches a file for modifications and emits events when changes are detected."""
-    
     def __init__(self, filepath: Path):
         self.filepath = filepath
         self._file_reloaded_stream: Stream[bool] = Stream()
@@ -172,7 +161,6 @@ class IMIPReloader:
         return self._file_reloaded_stream
 
     async def run(self) -> None:
-        """Poll the file for changes and emit events when modified."""
         last_mtime = None
         while True:
             try:

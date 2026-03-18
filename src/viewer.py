@@ -4,7 +4,7 @@ import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
 
-from .base import ImageBundle
+from base import ImageBundle
 
 
 class Viewer:
@@ -18,7 +18,7 @@ class Viewer:
         plt.axis("off")
         self.im = None
 
-    def get_columns(self, image_bundles) -> int:
+    def get_columns(self, image_bundles: list[ImageBundle]) -> int:
         max_images = 0
         for bundle in image_bundles:
             num_images = 1 + len(bundle.processed_images)  # source + processed
@@ -50,12 +50,10 @@ class Viewer:
         return np.hstack(columns)
 
     def _get_scaled_dimensions(self) -> tuple[int, int]:
-        """Get the scaled height and width for images."""
         h, w = self.image_bundles[0].source_image.shape[:2]
         return int(h * self.scale), int(w * self.scale)
 
     def _reformat_and_pad_bundles(self, h: int, w: int) -> list[ImageBundle]:
-        """Reformat all images to the same size and add padding to match column count."""
         reformatted_bundles = []
 
         for img_bundle in self.image_bundles:
@@ -83,7 +81,6 @@ class Viewer:
         return reformatted_bundles
 
     def _create_step_labels_column(self, first_bundle: ImageBundle, img_height: int) -> np.ndarray:
-        """Create the first column with processing step labels."""
         label_width = 150
         label_height = 40
 
@@ -101,7 +98,6 @@ class Viewer:
     def _create_image_columns(
         self, bundles: list[ImageBundle], img_width: int, img_height: int
     ) -> list[np.ndarray]:
-        """Create image columns, one column per image."""
         label_height = 40
         columns = []
 
@@ -116,7 +112,6 @@ class Viewer:
         return columns
 
     def _create_text_only_label(self, text: str, width: int, height: int) -> np.ndarray:
-        """Create a text label without an image underneath."""
         label_bg = np.ones((height, width, 3), dtype=np.uint8) * 255
 
         if text:
@@ -125,7 +120,6 @@ class Viewer:
         return label_bg
 
     def _create_filename_label(self, text: str, width: int, height: int) -> np.ndarray:
-        """Create a vertical label with filename text."""
         label_bg = np.ones((height, width, 3), dtype=np.uint8) * 255
 
         if text:
@@ -134,7 +128,6 @@ class Viewer:
         return label_bg
 
     def _add_centered_text(self, image: np.ndarray, text: str, width: int, height: int) -> None:
-        """Add centered text to an image in-place."""
         font = cv.FONT_HERSHEY_SIMPLEX
         font_scale = 0.5
         font_thickness = 1
