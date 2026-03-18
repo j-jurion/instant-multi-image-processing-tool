@@ -4,12 +4,23 @@ from matplotlib import pyplot as plt
 
 from base import ImageBundle
 
+LABEL_WIDTH = 150
+LABEL_HEIGHT = 40
+FONT_SCALE = 0.5
+FONT_THICKNESS = 1
+DEFAULT_SCALE = 1.0
+DEFAULT_COLUMNS = 4
+PADDING_COLOR = 255
+
 
 class Viewer:
     def __init__(self, image_bundles: list[ImageBundle]):
         self.image_bundles = image_bundles
-        self.scale = 1.0
-        self.columns = 4
+        self.scale = DEFAULT_SCALE
+        self.columns = DEFAULT_COLUMNS
+        self._setup_matplotlib()
+
+    def _setup_matplotlib(self) -> None:
         plt.ion()
         self.fig, self.ax = plt.subplots()
         self.fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
@@ -17,22 +28,21 @@ class Viewer:
         self.im = None
 
     def get_columns(self, image_bundles: list[ImageBundle]) -> int:
-        max_images = 0
-        for bundle in image_bundles:
-            num_images = 1 + len(bundle.processed_images)  # source + processed
-            if num_images > max_images:
-                max_images = num_images
-        return max_images
+        if not image_bundles:
+            return 0
+        return max(1 + len(bundle.processed_images) for bundle in image_bundles)
 
     def reformat_image(
         self, new_size: tuple[int, int], image: np.ndarray
     ) -> np.ndarray:
-        if len(image.shape) == 2:  # Grayscale image
+        if len(image.shape) == 2:
             image = cv.cvtColor(image, cv.COLOR_GRAY2RGB)
-        elif image.shape[2] == 3:  # BGR image
+        elif len(image.shape) == 3 and image.shape[2] == 3:
             image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        elif len(image.shape) == 3 and image.shape[2] == 4:
+            image = cv.cvtColor(image, cv.COLOR_BGRA2RGB)
         else:
-            raise ValueError("Unsupported image format")
+            raise ValueError(f"Unsupported image format: shape={image.shape}")
         return cv.resize(image, new_size)
 
     def make_grid(self):
@@ -50,6 +60,8 @@ class Viewer:
         return np.hstack(columns)
 
     def _get_scaled_dimensions(self) -> tuple[int, int]:
+        if not self.image_bundles:
+            return (0, 0)
         h, w = self.image_bundles[0].source_image.shape[:2]
         return int(h * self.scale), int(w * self.scale)
 
@@ -62,6 +74,14 @@ class Viewer:
                 k: self.reformat_image((w, h), img)
                 for k, img in img_bundle.processed_images.items()
             }
+
+            num_images = 1 + len(reformatted_processed)
+            padding_count = self._calculate_padding_count(num_images)
+
+            for i in range(padding_count):
+                padding_key = f"_pad_{num_images + i}"
+                reformatted_processed[padding_key] = self._create_padding_image(h, w)
+
             reformatted_bundles.append(
                 ImageBundle(
                     source_image=reformatted_source,
@@ -70,48 +90,36 @@ class Viewer:
                 )
             )
 
-        # Pad each row to match column count
-        for bundle in reformatted_bundles:
-            num_images = 1 + len(bundle.processed_images)
-            padding_count = (self.columns - (num_images % self.columns)) % self.columns
-            for i in range(padding_count):
-                padding_key = f"_pad_{num_images + i}"
-                bundle.processed_images[padding_key] = (
-                    np.ones((h, w, 3), dtype=np.uint8) * 255
-                )
-
         return reformatted_bundles
+
+    def _calculate_padding_count(self, num_images: int) -> int:
+        return (self.columns - (num_images % self.columns)) % self.columns
+
+    def _create_padding_image(self, h: int, w: int) -> np.ndarray:
+        return np.ones((h, w, 3), dtype=np.uint8) * PADDING_COLOR
 
     def _create_step_labels_column(
         self, first_bundle: ImageBundle, img_height: int
     ) -> np.ndarray:
-        label_width = 150
-        label_height = 40
-
         rows = [
-            self._create_text_only_label(
-                "", label_width, label_height
-            ),  # Top-left corner
-            self._create_text_only_label("Original", label_width, img_height),
+            self._create_label("", LABEL_WIDTH, LABEL_HEIGHT),
+            self._create_label("Original", LABEL_WIDTH, img_height),
         ]
 
         for description in first_bundle.processed_images.keys():
             label_text = "" if description.startswith("_pad_") else description
-            rows.append(
-                self._create_text_only_label(label_text, label_width, img_height)
-            )
+            rows.append(self._create_label(label_text, LABEL_WIDTH, img_height))
 
         return np.vstack(rows)
 
     def _create_image_columns(
         self, bundles: list[ImageBundle], img_width: int, img_height: int
     ) -> list[np.ndarray]:
-        label_height = 40
         columns = []
 
         for bundle in bundles:
             rows = [
-                self._create_text_only_label(bundle.filename, img_width, label_height),
+                self._create_label(bundle.filename, img_width, LABEL_HEIGHT),
                 bundle.source_image,
             ]
             rows.extend(bundle.processed_images.values())
@@ -119,16 +127,8 @@ class Viewer:
 
         return columns
 
-    def _create_text_only_label(self, text: str, width: int, height: int) -> np.ndarray:
-        label_bg = np.ones((height, width, 3), dtype=np.uint8) * 255
-
-        if text:
-            self._add_centered_text(label_bg, text, width, height)
-
-        return label_bg
-
-    def _create_filename_label(self, text: str, width: int, height: int) -> np.ndarray:
-        label_bg = np.ones((height, width, 3), dtype=np.uint8) * 255
+    def _create_label(self, text: str, width: int, height: int) -> np.ndarray:
+        label_bg = np.ones((height, width, 3), dtype=np.uint8) * PADDING_COLOR
 
         if text:
             self._add_centered_text(label_bg, text, width, height)
@@ -139,19 +139,17 @@ class Viewer:
         self, image: np.ndarray, text: str, width: int, height: int
     ) -> None:
         font = cv.FONT_HERSHEY_SIMPLEX
-        font_scale = 0.5
-        font_thickness = 1
-        text_size = cv.getTextSize(text, font, font_scale, font_thickness)[0]
-        text_x = (width - text_size[0]) // 2
+        text_size = cv.getTextSize(text, font, FONT_SCALE, FONT_THICKNESS)[0]
+        text_x = max(0, (width - text_size[0]) // 2)
         text_y = (height + text_size[1]) // 2
         cv.putText(
             image,
             text,
             (text_x, text_y),
             font,
-            font_scale,
+            FONT_SCALE,
             (0, 0, 0),
-            font_thickness,
+            FONT_THICKNESS,
             cv.LINE_AA,
         )
 
