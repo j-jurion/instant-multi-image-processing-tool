@@ -75,13 +75,17 @@ class IMIP:
             logger.warning(f"Could not load image {path}: {e}")
             return None
 
-    def debug_fn(self, function: Callable[[Any], Any], watch_file: Path) -> None:
+    def debug_fn(
+        self, function: Callable[..., Any], watch_file: Path, *args, **kwargs
+    ) -> None:
         self._imip_reloader = IMIPReloader(watch_file)
         function_name = function.__name__
         watch_file_abs = watch_file.resolve()
+        self._function_args = args
+        self._function_kwargs = kwargs
 
         # Initial processing run
-        self._process_all_images(function)
+        self._process_all_images(function, *args, **kwargs)
 
         # Setup file watcher
         def on_file_changed(reloaded: bool):
@@ -89,7 +93,9 @@ class IMIP:
                 logger.info(f"Detected change in {watch_file.name}, reloading...")
                 reloaded_function = self._reload_function(function_name, watch_file_abs)
                 if reloaded_function:
-                    self._process_all_images(reloaded_function, clear_processed=True)
+                    self._process_all_images(
+                        reloaded_function, *args, clear_processed=True, **kwargs
+                    )
                 else:
                     logger.error(
                         "Failed to reload function. Fix errors and save again."
@@ -136,7 +142,7 @@ class IMIP:
         return None
 
     def _process_all_images(
-        self, function: Callable, clear_processed: bool = False
+        self, function: Callable, *args, clear_processed: bool = False, **kwargs
     ) -> None:
         logger.info(f"Processing {len(self.debug_images)} image(s)")
 
@@ -151,7 +157,7 @@ class IMIP:
                     image_bundle.processed_images.clear()
 
                 try:
-                    function(image_bundle.source_image)
+                    function(image_bundle.source_image, *args, **kwargs)
                 except Exception as e:
                     logger.error(
                         f"Error processing image {image_bundle.filename}: {e}",

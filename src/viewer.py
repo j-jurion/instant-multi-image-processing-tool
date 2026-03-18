@@ -43,6 +43,8 @@ class Viewer:
             self._next_page()
         elif event.key == "left":
             self._previous_page()
+        elif event.key == "escape":
+            plt.close(self.fig)
 
     def _calculate_visible_count(self) -> int:
         """Calculate how many image bundles can fit within the max page width."""
@@ -249,7 +251,7 @@ class Viewer:
             page_info = self._get_page_info()
             if self.fig.canvas.manager is not None:
                 self.fig.canvas.manager.set_window_title(
-                    f"Images: {page_info} (Use arrow keys to navigate)"
+                    f"Images: {page_info} (Arrow keys: navigate | ESC: close)"
                 )
 
             self.fig.canvas.draw_idle()

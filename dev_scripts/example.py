@@ -9,12 +9,12 @@ from src.imip import IMIP
 app = typer.Typer()
 
 
-def process_image(image: np.ndarray) -> np.ndarray:
+def process_image(image: np.ndarray, threshold: int) -> np.ndarray:
     gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
     imip.debug(gray, "Gray Image")
     blurred = cv.GaussianBlur(gray, (5, 5), 4)
     imip.debug(blurred, "Blurred Image")
-    _, thresholded = cv.threshold(blurred, 50, 255, cv.THRESH_BINARY)
+    _, thresholded = cv.threshold(blurred, threshold, 255, cv.THRESH_BINARY)
     imip.debug(thresholded, "Thresholded Image")
     return thresholded
 
@@ -33,7 +33,7 @@ def main(
         images=image_folder,
         output_directory=output_directory,
     )
-    imip.debug_fn(process_image, watch_file=Path(__file__))
+    imip.debug_fn(process_image, watch_file=Path(__file__), threshold=60)
 
 
 if __name__ == "__main__":
