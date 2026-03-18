@@ -23,13 +23,12 @@ class IMIP:
         self,
         images: Path,
         output_directory: Path | None = None,
-        save_debug_images: bool = False,
     ):
         self.debug_images = self._load_images(images)
         self._current_image_index: int | None = None
         self._lock = threading.Lock()
         self.output_directory = output_directory
-        self.save_debug_images = save_debug_images
+        self.save_debug_images = output_directory is not None
         self._imip_reloader: IMIPReloader | None = None
         self.viewer = Viewer(self.debug_images)
 
