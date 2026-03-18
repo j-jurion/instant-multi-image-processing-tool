@@ -2,7 +2,7 @@ import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
 
-from base import ImageBundle
+from .base import ImageBundle
 
 LABEL_WIDTH = 150
 LABEL_HEIGHT = 40
@@ -45,17 +45,20 @@ class Viewer:
             raise ValueError(f"Unsupported image format: shape={image.shape}")
         return cv.resize(image, new_size)
 
-    def make_grid(self):
+    def make_grid(self) -> np.ndarray | None:
         if not self.image_bundles:
             return None
 
         h, w = self._get_scaled_dimensions()
         reformatted_bundles = self._reformat_and_pad_bundles(h, w)
 
+        if not reformatted_bundles:
+            return None
+
         # Build grid as: rows=steps, columns=images
         columns = []
         columns.append(self._create_step_labels_column(reformatted_bundles[0], h))
-        columns.extend(self._create_image_columns(reformatted_bundles, w, h))
+        columns.extend(self._create_image_columns(reformatted_bundles, w))
 
         return np.hstack(columns)
 
@@ -113,7 +116,7 @@ class Viewer:
         return np.vstack(rows)
 
     def _create_image_columns(
-        self, bundles: list[ImageBundle], img_width: int, img_height: int
+        self, bundles: list[ImageBundle], img_width: int
     ) -> list[np.ndarray]:
         columns = []
 
@@ -153,7 +156,7 @@ class Viewer:
             cv.LINE_AA,
         )
 
-    def show(self):
+    def show(self) -> None:
         grid = self.make_grid()
         if grid is not None:
             if self.im is None:
@@ -165,6 +168,6 @@ class Viewer:
             self.fig.canvas.draw_idle()
             self.fig.canvas.flush_events()
 
-    def update(self, image_bundles: list[ImageBundle]):
+    def update(self, image_bundles: list[ImageBundle]) -> None:
         self.image_bundles = image_bundles
         self.show()

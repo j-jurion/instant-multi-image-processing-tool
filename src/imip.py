@@ -9,10 +9,9 @@ import cv2 as cv
 import numpy as np
 from heliovision.streams.stream import Observable, Stream
 from loguru import logger
-from matplotlib import pyplot as plt
 
-from base import ImageBundle
-from viewer import Viewer
+from .base import ImageBundle
+from .viewer import Viewer
 
 # Constants
 FILE_WATCH_INTERVAL = 0.1  # seconds
@@ -181,6 +180,8 @@ class IMIP:
         logger.debug("File watcher thread started")
 
     def _show_viewer(self) -> None:
+        from matplotlib import pyplot as plt
+
         logger.info("Starting viewer. Close the window to exit.")
         plt.show(block=True)
 
