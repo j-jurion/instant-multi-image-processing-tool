@@ -1,12 +1,22 @@
 [[source]]
-url = "https://pypi.org/simple"
+url = "https://${HV_PACKAGE_TOKEN}@git.heliovision.be:8443/simple"
 verify_ssl = true
-name = "pypi"
+name = "hv-pypi"
 
 [packages]
-loguru = "*"
+numpy = ">=1.26, <3"
+opencv-python = "~=4.12.0.88"
+loguru = "~=0.7.2"
+"heliovision.streams" = "==1.4.0"
+matplotlib= "==3.10.8"
 
 [dev-packages]
+pytest = ">=9.0.2, <10"
+pytest-asyncio = ">=1.3.0, <2"
+pytest-cov = ">=7.0.0, <8"
+ruff = "==0.15.0"
+
 
 [requires]
+allow_prereleases = true
 python_version = "3.12"
