@@ -1,5 +1,3 @@
-import time
-
 import cv2 as cv
 import numpy as np
 from matplotlib import pyplot as plt
@@ -26,7 +24,9 @@ class Viewer:
                 max_images = num_images
         return max_images
 
-    def reformat_image(self, new_size: tuple[int, int], image: np.ndarray) -> np.ndarray:
+    def reformat_image(
+        self, new_size: tuple[int, int], image: np.ndarray
+    ) -> np.ndarray:
         if len(image.shape) == 2:  # Grayscale image
             image = cv.cvtColor(image, cv.COLOR_GRAY2RGB)
         elif image.shape[2] == 3:  # BGR image
@@ -76,22 +76,30 @@ class Viewer:
             padding_count = (self.columns - (num_images % self.columns)) % self.columns
             for i in range(padding_count):
                 padding_key = f"_pad_{num_images + i}"
-                bundle.processed_images[padding_key] = np.ones((h, w, 3), dtype=np.uint8) * 255
+                bundle.processed_images[padding_key] = (
+                    np.ones((h, w, 3), dtype=np.uint8) * 255
+                )
 
         return reformatted_bundles
 
-    def _create_step_labels_column(self, first_bundle: ImageBundle, img_height: int) -> np.ndarray:
+    def _create_step_labels_column(
+        self, first_bundle: ImageBundle, img_height: int
+    ) -> np.ndarray:
         label_width = 150
         label_height = 40
 
         rows = [
-            self._create_text_only_label("", label_width, label_height),  # Top-left corner
+            self._create_text_only_label(
+                "", label_width, label_height
+            ),  # Top-left corner
             self._create_text_only_label("Original", label_width, img_height),
         ]
 
         for description in first_bundle.processed_images.keys():
             label_text = "" if description.startswith("_pad_") else description
-            rows.append(self._create_text_only_label(label_text, label_width, img_height))
+            rows.append(
+                self._create_text_only_label(label_text, label_width, img_height)
+            )
 
         return np.vstack(rows)
 
@@ -127,7 +135,9 @@ class Viewer:
 
         return label_bg
 
-    def _add_centered_text(self, image: np.ndarray, text: str, width: int, height: int) -> None:
+    def _add_centered_text(
+        self, image: np.ndarray, text: str, width: int, height: int
+    ) -> None:
         font = cv.FONT_HERSHEY_SIMPLEX
         font_scale = 0.5
         font_thickness = 1
@@ -135,7 +145,14 @@ class Viewer:
         text_x = (width - text_size[0]) // 2
         text_y = (height + text_size[1]) // 2
         cv.putText(
-            image, text, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness, cv.LINE_AA
+            image,
+            text,
+            (text_x, text_y),
+            font,
+            font_scale,
+            (0, 0, 0),
+            font_thickness,
+            cv.LINE_AA,
         )
 
     def show(self):
@@ -153,24 +170,3 @@ class Viewer:
     def update(self, image_bundles: list[ImageBundle]):
         self.image_bundles = image_bundles
         self.show()
-
-
-if __name__ == "__main__":
-    img1 = cv.imread("images/01.jpg")
-    img2 = cv.imread("images/02.jpg")
-
-    assert img1 is not None
-    assert img2 is not None
-
-    bundle1 = ImageBundle(source_image=img1, processed_images={"1": img1})
-    bundle2 = ImageBundle(source_image=img2, processed_images={"1": img2, "2": img2})
-
-    viewer = Viewer([bundle1, bundle2])
-    viewer.show()
-    time.sleep(20)
-
-    bundle1 = ImageBundle(source_image=img1, processed_images={"1": img1, "2": img1})
-
-    viewer.update([bundle1, bundle2])
-
-    plt.show(block=True)  # Block to keep window open

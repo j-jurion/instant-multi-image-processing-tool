@@ -15,7 +15,12 @@ from viewer import Viewer
 
 
 class IMIP:
-    def __init__(self, images: Path, output_directory: Path | None = None, save_debug_images: bool = False):
+    def __init__(
+        self,
+        images: Path,
+        output_directory: Path | None = None,
+        save_debug_images: bool = False,
+    ):
         self.debug_images = self.load_images(images)
         self.current_image_index: int | None = None
         self.output_directory = output_directory
@@ -26,11 +31,11 @@ class IMIP:
     def load_images(self, path: Path) -> list[ImageBundle]:
         if not path.is_file() and not path.is_dir():
             raise ValueError(f"Path {path} is neither a file nor a directory.")
-        
+
         if path.is_file():
             image_bundle = self._load_image(path)
             return [image_bundle] if image_bundle else []
-        
+
         image_bundles = []
         for img_file in sorted(path.glob("*.*")):
             if not img_file.is_file():
@@ -47,10 +52,8 @@ class IMIP:
                 logger.warning(f"Image at {path} could not be loaded. Image is None.")
             else:
                 return ImageBundle(
-                        source_image=image,
-                        processed_images={},
-                        filename=path.name
-                    )
+                    source_image=image, processed_images={}, filename=path.name
+                )
         except Exception as e:
             logger.warning(f"Could not load image {path}: {e}")
 
@@ -76,14 +79,16 @@ class IMIP:
 
         # Start file watcher in background
         self._start_file_watcher()
-        
+
         # Keep matplotlib on main thread
         self._show_viewer()
 
     def _reload_function(self, function_name: str, file_path: Path) -> Callable | None:
         logger.debug("File reloaded - reloading module")
         try:
-            spec = importlib.util.spec_from_file_location("__reloaded_module__", file_path)
+            spec = importlib.util.spec_from_file_location(
+                "__reloaded_module__", file_path
+            )
             if spec and spec.loader:
                 module = importlib.util.module_from_spec(spec)
                 module.imip = self  # type: ignore
@@ -97,52 +102,58 @@ class IMIP:
             logger.error(f"Failed to reload module: {e}")
         return None
 
-    def _process_all_images(self, function: Callable, clear_processed: bool = False) -> None:
+    def _process_all_images(
+        self, function: Callable, clear_processed: bool = False
+    ) -> None:
         logger.debug(f"Processing {len(self.debug_images)} images")
         for i, image_bundle in enumerate(self.debug_images):
             logger.debug(f"Processing image {i + 1}/{len(self.debug_images)}")
             self.current_image_index = i
-            
+
             if clear_processed:
                 image_bundle.processed_images.clear()
-            
+
             try:
                 function(image_bundle.source_image)
             except Exception as e:
                 logger.error(f"Error processing image {i}: {e}")
-        
+
         self.viewer.update(self.debug_images)
         if self.save_debug_images:
             self.save_images()
 
     def _start_file_watcher(self) -> None:
         loop = asyncio.new_event_loop()
-        
+
         def run_async_loop():
             asyncio.set_event_loop(loop)
             assert self.imip_reloader is not None
             loop.run_until_complete(self.imip_reloader.run())
-        
+
         async_thread = threading.Thread(target=run_async_loop, daemon=True)
         async_thread.start()
 
     def _show_viewer(self) -> None:
         from matplotlib import pyplot as plt
+
         plt.show(block=True)
 
     def debug(self, image: np.ndarray, description: str = "") -> None:
         assert self.current_image_index is not None, "No current image data set."
-        logger.debug(f"Debugging image at index {self.current_image_index} with description '{description}'")
-        self.debug_images[self.current_image_index].processed_images[description] = image
-
+        logger.debug(
+            f"Debugging image at index {self.current_image_index} with description '{description}'"
+        )
+        self.debug_images[self.current_image_index].processed_images[description] = (
+            image
+        )
 
     def save_images(self) -> None:
         if not self.output_directory:
             logger.warning("Output directory not set. Cannot save images.")
             return
-        
+
         os.makedirs(self.output_directory, exist_ok=True)
-        
+
         for bundle in self.debug_images:
             for desc, img in bundle.processed_images.items():
                 filename = f"{Path(bundle.filename).stem}_{desc}.png"
@@ -172,6 +183,5 @@ class IMIPReloader:
                 last_mtime = current_mtime
             except Exception as e:
                 logger.error(f"Error checking file modification time: {e}")
-            
-            await asyncio.sleep(0.1)
 
+            await asyncio.sleep(0.1)

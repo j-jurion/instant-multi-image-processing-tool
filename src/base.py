@@ -1,7 +1,7 @@
-
-
 from typing import NamedTuple
+
 import numpy as np
+
 
 class ImageBundle(NamedTuple):
     source_image: np.ndarray
