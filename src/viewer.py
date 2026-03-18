@@ -10,14 +10,23 @@ FONT_SCALE = 0.5
 FONT_THICKNESS = 1
 DEFAULT_SCALE = 1.0
 DEFAULT_COLUMNS = 4
+DEFAULT_MAX_PAGE_WIDTH = (
+    2500  # Maximum total width in pixels for all images on one page
+)
 PADDING_COLOR = 255
 
 
 class Viewer:
-    def __init__(self, image_bundles: list[ImageBundle]):
+    def __init__(
+        self,
+        image_bundles: list[ImageBundle],
+        max_page_width: int = DEFAULT_MAX_PAGE_WIDTH,
+    ):
         self.image_bundles = image_bundles
         self.scale = DEFAULT_SCALE
         self.columns = DEFAULT_COLUMNS
+        self.max_page_width = max_page_width
+        self.current_offset = 0
         self._setup_matplotlib()
 
     def _setup_matplotlib(self) -> None:
@@ -26,6 +35,70 @@ class Viewer:
         self.fig.subplots_adjust(left=0, bottom=0, right=1, top=1, wspace=0, hspace=0)
         plt.axis("off")
         self.im = None
+        self.fig.canvas.mpl_connect("key_press_event", self._on_key_press)
+
+    def _on_key_press(self, event) -> None:
+        """Handle keyboard events for navigation."""
+        if event.key == "right":
+            self._next_page()
+        elif event.key == "left":
+            self._previous_page()
+
+    def _calculate_visible_count(self) -> int:
+        """Calculate how many image bundles can fit within the max page width."""
+        if not self.image_bundles:
+            return 0
+
+        h, w = self._get_scaled_dimensions()
+        available_width = self.max_page_width - LABEL_WIDTH
+
+        if w <= 0:
+            return 1
+
+        # Calculate how many image columns fit in the available width
+        max_bundles = max(1, available_width // w)
+        return min(max_bundles, len(self.image_bundles) - self.current_offset)
+
+    def _next_page(self) -> None:
+        """Navigate to the next page of images."""
+        if self.current_offset >= len(self.image_bundles):
+            return
+
+        visible_count = self._calculate_visible_count()
+        new_offset = self.current_offset + visible_count
+
+        if new_offset < len(self.image_bundles):
+            self.current_offset = new_offset
+            self.show()
+
+    def _previous_page(self) -> None:
+        """Navigate to the previous page of images."""
+        if self.current_offset <= 0:
+            return
+
+        # Calculate how many images would have been on the previous page
+        h, w = self._get_scaled_dimensions()
+        available_width = self.max_page_width - LABEL_WIDTH
+        bundles_per_page = max(1, available_width // w) if w > 0 else 1
+
+        self.current_offset = max(0, self.current_offset - bundles_per_page)
+        self.show()
+
+    def _get_visible_bundles(self) -> list[ImageBundle]:
+        """Get the currently visible slice of image bundles."""
+        visible_count = self._calculate_visible_count()
+        end_idx = min(self.current_offset + visible_count, len(self.image_bundles))
+        return self.image_bundles[self.current_offset : end_idx]
+
+    def _get_page_info(self) -> str:
+        """Get current page information string."""
+        if not self.image_bundles:
+            return "0 of 0"
+        start = self.current_offset + 1
+        visible_count = self._calculate_visible_count()
+        end = min(self.current_offset + visible_count, len(self.image_bundles))
+        total = len(self.image_bundles)
+        return f"{start}-{end} of {total}"
 
     def get_columns(self, image_bundles: list[ImageBundle]) -> int:
         if not image_bundles:
@@ -49,8 +122,12 @@ class Viewer:
         if not self.image_bundles:
             return None
 
+        visible_bundles = self._get_visible_bundles()
+        if not visible_bundles:
+            return None
+
         h, w = self._get_scaled_dimensions()
-        reformatted_bundles = self._reformat_and_pad_bundles(h, w)
+        reformatted_bundles = self._reformat_and_pad_bundles(h, w, visible_bundles)
 
         if not reformatted_bundles:
             return None
@@ -68,10 +145,12 @@ class Viewer:
         h, w = self.image_bundles[0].source_image.shape[:2]
         return int(h * self.scale), int(w * self.scale)
 
-    def _reformat_and_pad_bundles(self, h: int, w: int) -> list[ImageBundle]:
+    def _reformat_and_pad_bundles(
+        self, h: int, w: int, bundles: list[ImageBundle]
+    ) -> list[ImageBundle]:
         reformatted_bundles = []
 
-        for img_bundle in self.image_bundles:
+        for img_bundle in bundles:
             reformatted_source = self.reformat_image((w, h), img_bundle.source_image)
             reformatted_processed = {
                 k: self.reformat_image((w, h), img)
@@ -165,9 +244,20 @@ class Viewer:
             else:
                 self.im.set_data(grid)
                 self.im.set_extent((0, grid.shape[1], grid.shape[0], 0))
+
+            # Update window title with page info
+            page_info = self._get_page_info()
+            if self.fig.canvas.manager is not None:
+                self.fig.canvas.manager.set_window_title(
+                    f"Images: {page_info} (Use arrow keys to navigate)"
+                )
+
             self.fig.canvas.draw_idle()
             self.fig.canvas.flush_events()
 
     def update(self, image_bundles: list[ImageBundle]) -> None:
         self.image_bundles = image_bundles
+        # Keep current page if valid, otherwise adjust to last valid page
+        if self.current_offset >= len(self.image_bundles):
+            self.current_offset = max(0, len(self.image_bundles) - 1)
         self.show()
