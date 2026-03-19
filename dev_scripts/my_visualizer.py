@@ -96,11 +96,12 @@ def auto_visualize_breakpoint(*args, **kwargs):
 _original_trace = None
 _watched_variable = "imip_images"
 _last_seen_value = {}  # Track what we've seen per frame
+_accumulated_images = []  # Store images across multiple calls
 
 
 def _watch_variable_trace(frame, event, arg):
     """Trace function that watches for imip_images variable creation/update"""
-    global _last_seen_value
+    global _last_seen_value, _accumulated_images
 
     if event == "line":
         frame_id = id(frame)
@@ -110,14 +111,27 @@ def _watch_variable_trace(frame, event, arg):
         if _watched_variable in locals_dict:
             current_value = id(locals_dict[_watched_variable])
 
-            # If we haven't seen this value in this frame before, show images
+            # If we haven't seen this value in this frame before, accumulate images
             if (
                 frame_id not in _last_seen_value
                 or _last_seen_value.get(frame_id) != current_value
             ):
                 _last_seen_value[frame_id] = current_value
-                print(f"\n[Visualizer] Detected '{_watched_variable}' variable!")
-                _show_images_in_frame(frame, specific_var=_watched_variable)
+                value = locals_dict[_watched_variable]
+
+                # Accumulate images (don't display)
+                print(
+                    f"\n[Visualizer] Detected '{_watched_variable}' - accumulating..."
+                )
+                if isinstance(value, (list, tuple)):
+                    for img in value:
+                        if isinstance(img, np.ndarray) and len(img.shape) >= 2:
+                            _accumulated_images.append(img.copy())
+                elif isinstance(value, np.ndarray) and len(value.shape) >= 2:
+                    _accumulated_images.append(value.copy())
+                print(
+                    f"[Visualizer] Total accumulated: {len(_accumulated_images)} images"
+                )
         elif frame_id in _last_seen_value:
             # Variable no longer exists, clean up tracking
             del _last_seen_value[frame_id]
@@ -131,11 +145,14 @@ def _watch_variable_trace(frame, event, arg):
 
 def enable_auto_visualization_on_variable(variable_name="imip_images"):
     """
-    Enable automatic image visualization when a specific variable is created/updated.
+    Enable automatic image accumulation when a specific variable is created/updated.
     Only works in debug mode (when debugpy is active).
 
     Args:
         variable_name: The variable name to watch for (default: "imip_images")
+
+    Images are accumulated automatically but NOT displayed.
+    Call show_accumulated() to display all images - this is the ONLY way to see them.
     """
     global _original_trace, _watched_variable, _last_seen_value
 
@@ -147,12 +164,11 @@ def enable_auto_visualization_on_variable(variable_name="imip_images"):
         _original_trace = sys.gettrace()
         sys.settrace(_watch_variable_trace)
         print("=" * 60)
-        print("[Visualizer] Auto-visualization ENABLED!")
+        print("[Visualizer] Auto-accumulation ENABLED!")
         print("=" * 60)
         print(f"Watching for variable: '{variable_name}'")
-        print(
-            f"When '{variable_name}' is created/updated, images will show automatically"
-        )
+        print("Images will be accumulated (not displayed automatically)")
+        print("Call show_accumulated() to display all accumulated images")
         print("=" * 60)
     else:
         print("[Visualizer] Not in debug mode - auto-visualization disabled")
@@ -201,5 +217,103 @@ def show_current_images():
     _show_images_in_frame(frame)
 
 
+def show_accumulated():
+    """Display all accumulated images from multiple function calls"""
+    global _accumulated_images
+
+    if not _accumulated_images:
+        print("[Visualizer] No accumulated images to show")
+        return
+
+    print(f"\n[Visualizer] Displaying {len(_accumulated_images)} accumulated images")
+
+    for i, img in enumerate(_accumulated_images):
+        cv.imshow(f"Image {i + 1}/{len(_accumulated_images)}", img)
+        cv.waitKey(1)
+
+    print("[Visualizer] Press any key to close all windows...")
+    cv.waitKey(0)
+    cv.destroyAllWindows()
+
+    print(f"[Visualizer] Cleared {len(_accumulated_images)} images from buffer")
+    _accumulated_images = []
+
+
+def clear_accumulated():
+    """Clear accumulated images without showing them"""
+    global _accumulated_images
+    count = len(_accumulated_images)
+    _accumulated_images = []
+    print(f"[Visualizer] Cleared {count} accumulated images")
+
+
 # Short alias for convenience
 show = show_current_images  # Type just: show()
+show_all = show_accumulated  # Type: show_all()
+clear = clear_accumulated  # Type: clear()
+
+
+# Reload helper for debugging
+def reload_all():
+    """
+    Reload all project modules (non-standard library) while debugging.
+    Call from debug console: reload_all()
+    """
+    import importlib
+    from pathlib import Path
+
+    # Get the workspace root (parent of src/ and dev_scripts/)
+    try:
+        workspace_root = Path(__file__).parent.parent.resolve()
+    except:
+        workspace_root = Path.cwd()
+
+    modules_to_reload = []
+    failed_reloads = []
+
+    # Find all loaded modules that are part of this project
+    for module_name, module in list(sys.modules.items()):
+        if module is None:
+            continue
+
+        try:
+            # Get module file path
+            if not hasattr(module, "__file__") or module.__file__ is None:
+                continue
+
+            module_path = Path(module.__file__).resolve()
+
+            # Check if module is inside workspace
+            try:
+                module_path.relative_to(workspace_root)
+                # It's a project module, try to reload it
+                try:
+                    importlib.reload(module)
+                    modules_to_reload.append(module_name)
+                except (RuntimeError, ImportError, AttributeError, TypeError) as e:
+                    # Some modules can't be reloaded (like numpy._globals)
+                    failed_reloads.append((module_name, str(e)))
+            except ValueError:
+                # Not in workspace, skip
+                pass
+
+        except Exception:
+            # Skip any problematic modules
+            pass
+
+    if modules_to_reload:
+        print(f"[Reload] Reloaded {len(modules_to_reload)} module(s):")
+        for mod in sorted(modules_to_reload):
+            print(f"  - {mod}")
+    else:
+        print("[Reload] No project modules found to reload")
+
+    if failed_reloads:
+        print(
+            f"[Reload] Skipped {len(failed_reloads)} module(s) that cannot be reloaded"
+        )
+
+    print("[Reload] Note: Already-defined functions won't be updated automatically")
+    print("[Reload] You may need to re-import or restart for full effect")
+
+    return modules_to_reload

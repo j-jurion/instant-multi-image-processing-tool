@@ -5,7 +5,10 @@ import numpy as np
 import typer
 
 # Enable auto-visualization when imip_images variable is created
-from dev_scripts.my_visualizer import enable_auto_visualization_on_variable
+from dev_scripts.my_visualizer import (
+    enable_auto_visualization_on_variable,
+    show_accumulated,
+)
 from src.imip import IMIP
 
 enable_auto_visualization_on_variable("imip_images")
@@ -16,8 +19,8 @@ app = typer.Typer()
 def process_image(image: np.ndarray, threshold: int) -> np.ndarray:
     gray = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
     blurred = cv.GaussianBlur(gray, (5, 5), 4)
-    _, thresholded = cv.threshold(blurred, 100, 255, cv.THRESH_BINARY)
-    imip_images = [image, gray, blurred, thresholded]
+    _, thresholded = cv.threshold(blurred, 50, 255, cv.THRESH_BINARY)
+    imip_images = [image, gray, blurred, thresholded]  # noqa: F841
     return thresholded
 
 
@@ -39,7 +42,18 @@ def main(
 
 
 if __name__ == "__main__":
-    # app()
+    # imip = IMIP(
+    #     images=Path(
+    #         "C:\\Users\\joeri\\Documents\\IMA\\images\\2026-03-06\\breed\\crops\\kleine_patch"
+    #     )
+    # )
+
     image = cv.imread(r"C:\Users\joeri\Pictures\pretty images\04.jpg")
     assert image is not None, "Failed to load image. Please check the path."
+
+    image2 = cv.imread(r"C:\Users\joeri\Pictures\pretty images\03.jpg")
+    assert image2 is not None, "Failed to load image. Please check the path."
+
     process_image(image, threshold=60)
+    process_image(image2, threshold=60)
+    show_accumulated()
