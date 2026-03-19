@@ -5,7 +5,9 @@ import cv2 as cv
 import numpy as np
 from loguru import logger
 
-from src.imip import IMIP
+from src.imip import IMIP, MockIMIP
+
+imip = MockIMIP()  # Replace with actual IMIP instance when running in production
 
 
 class ProductAnalyzer:
@@ -142,28 +144,17 @@ class ProductAnalyzer:
 
 
 if __name__ == "__main__":
-    # ENVIRONMENT = "production"
-    ENVIRONMENT = "dev"
-
-    class NoOpIMIP:
-        def debug(self, image, description=""):
-            pass
-
     product_analyzer = ProductAnalyzer()
 
-    global imip
-    if ENVIRONMENT == "production":
-        imip = NoOpIMIP()
-    else:
-        # Dev
-        imip = IMIP(
-            images=Path(
-                "C:\\Users\\joeri\\Documents\\IMA\\images\\2026-03-06\\breed\\crops\\kleine_patch"
-            )
+    # Dev
+    imip = IMIP(
+        images=Path(
+            "C:\\Users\\joeri\\Documents\\IMA\\images\\2026-03-06\\breed\\crops\\kleine_patch"
         )
-        imip.debug_fn(
-            product_analyzer.apply_shadow_detection_algorithm,
-            watch_file=Path(__file__),
-            red_multiplier=50,
-            blue_multiplier=10,
-        )
+    )
+    imip.debug_fn(
+        product_analyzer.apply_shadow_detection_algorithm,
+        watch_file=Path(__file__),
+        red_multiplier=50,
+        blue_multiplier=10,
+    )
